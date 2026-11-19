@@ -1,15 +1,18 @@
-var scope, chromeHandle;
+var scope, chromeHandle, previewPagesMenu;
 
-async function startup({ rootURI, version }) {
+async function startup({ id, rootURI, version }) {
   chromeHandle = Cc["@mozilla.org/addons/addon-manager-startup;1"]
     .getService(Ci.amIAddonManagerStartup)
     .registerChrome(Services.io.newURI(rootURI + "manifest.json"), [
-      ["content", "library-icon-view", ""]
+      ["content", "library-custom-pages", ""]
     ]);
   scope = { Zotero, Services, ChromeUtils, Components, IOUtils, PathUtils, rootURI, version };
-  for (let file of ["epub-cover.js", "thumbnails.js", "model.js", "grid.js"]) {
+  for (let file of ["epub-cover.js", "thumbnails.js", "preview-pages.js", "model.js", "grid.js"]) {
     Services.scriptloader.loadSubScript(rootURI + file, scope);
   }
+  scope.previewPages = new scope.LibraryPreviewPages(PathUtils.join(Zotero.Profile.dir, "zotero-thumb-library-custom-pages.json"));
+  await scope.previewPages.load();
+  previewPagesMenu = scope.previewPages.registerMenu(id);
   for (let window of Zotero.getMainWindows()) await onMainWindowLoad({ window });
 }
 
@@ -17,7 +20,7 @@ async function onMainWindowLoad({ window }) {
   await window.Zotero?.uiReadyPromise;
   if (!scope || window.closed || window.ZoteroIconView) return;
   try {
-    let controller = new scope.LibraryIconView(window, scope.rootURI, scope.version);
+    let controller = new scope.LibraryIconView(window, scope.rootURI, scope.version, scope.previewPages);
     window.ZoteroIconView = controller;
     await controller.init();
   }
@@ -35,6 +38,8 @@ function onMainWindowUnload({ window }) {
 }
 
 function shutdown() {
+  if (previewPagesMenu) Zotero.MenuManager.unregisterMenu(previewPagesMenu);
+  previewPagesMenu = null;
   for (let window of Zotero.getMainWindows()) onMainWindowUnload({ window });
   chromeHandle?.destruct();
   chromeHandle = null;

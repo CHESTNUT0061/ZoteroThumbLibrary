@@ -1,5 +1,5 @@
 var LibraryIconView = class {
-  constructor(window, rootURI, version = "0") {
+  constructor(window, rootURI, version = "0", previewPages) {
     this.window = window;
     this.doc = window.document;
     this.rootURI = rootURI;
@@ -23,7 +23,7 @@ var LibraryIconView = class {
     this.disposers = [];
     this.enabled = Zotero.Prefs.get("libraryIconView.enabled") !== false;
     this.size = Math.max(120, Math.min(260, Zotero.Prefs.get("libraryIconView.size") || 172));
-    this.engine = new LibraryThumbnails({ Zotero, window, rootURI });
+    this.engine = new LibraryThumbnails({ Zotero, window, previewPages });
   }
 
   el(tag, attrs = {}, text) {
@@ -66,7 +66,10 @@ var LibraryIconView = class {
     this.viewport = this.el("div", { id: "ziv-viewport", tabindex: "0", role: "listbox", "aria-label": "Library items", "aria-multiselectable": "true" });
     this.canvas = this.el("div", { id: "ziv-cards" });
     this.viewport.append(this.canvas);
-    this.root.append(header, this.viewport, this.el("div", { class: "ziv-help" }, "Double-click to open · Space for Quick Look · ⌘-click to select several"));
+    const shortcuts = Zotero.isMac
+      ? "Double-click to open · Space for Quick Look · ⌘-click to select several"
+      : "Double-click to open · Ctrl-click to select several";
+    this.root.append(header, this.viewport, this.el("div", { class: "ziv-help" }, shortcuts));
     this.pane.append(this.root);
     this.listen(this.viewport, "scroll", () => this.scheduleRender(), { passive: true });
     this.listen(this.viewport, "keydown", event => this.keydown(event));
@@ -80,7 +83,7 @@ var LibraryIconView = class {
     this.bindView();
     this.observerID = Zotero.Notifier.registerObserver({ notify: (event, type, ids) => {
       if (type === "item") {
-        // Metadata and last-read changes do not change a PDF's first page.
+        // Metadata and last-read changes do not change a PDF preview page.
         // File changes are detected by the renderer's source fingerprint.
         if (event === "delete") for (let id of ids || []) {
           this.engine.invalidate(id);
@@ -560,6 +563,16 @@ var LibraryIconView = class {
     for (let [itemID, retained] of this.previewImages) {
       if (itemID === id || retained.attachmentID === id) this.forgetPreview(itemID);
     }
+  }
+
+  refreshPreviewPages(attachmentIDs) {
+    if (this.dead) return;
+    this.engine.clearQueue();
+    for (const id of attachmentIDs) {
+      this.engine.invalidate(id);
+      this.invalidatePreview(id);
+    }
+    this.refresh(true);
   }
 
   async select(id, event) {

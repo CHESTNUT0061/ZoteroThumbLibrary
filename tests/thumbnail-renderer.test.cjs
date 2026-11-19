@@ -102,6 +102,31 @@ test("unloading restores the original APIs, closes both ports, and drops pending
   assert.ok(harness.channels.every(channel => channel.port1.closed && channel.port2.closed));
 });
 
+test("PDF previews render the requested page, validate page count, and fall back after replacement", async () => {
+  const harness = fixture();
+  const pages = [];
+  harness.pdfjsLib.getDocument = () => ({
+    promise: Promise.resolve({
+      numPages: 3,
+      getPage: async number => {
+        pages.push(number);
+        return {
+          getViewport: ({ scale }) => ({ width: 300 * scale, height: 400 * scale }),
+          render: () => ({ promise: Promise.resolve() })
+        };
+      }
+    }),
+    async destroy() {}
+  });
+  const options = { bytes: new Uint8Array([1]), mime: "application/pdf" };
+  const renderer = harness.window.LibraryThumbnailRenderer;
+  assert.equal((await renderer.render({ ...options, countOnly: true })).pageCount, 3);
+  assert.equal(harness.canvases.length, 0);
+  await renderer.render({ ...options, pageNumber: 2 });
+  await renderer.render({ ...options, pageNumber: 4 });
+  assert.deepEqual(pages, [2, 1]);
+});
+
 test("PDF thumbnail rendering keeps display intent and releases its canvas and document", async () => {
   const harness = fixture();
   let renderOptions, destroyed = 0;

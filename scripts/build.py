@@ -14,6 +14,7 @@ RUNTIME_FILES = (
     "manifest.json",
     "model.js",
     "prefs.js",
+    "preview-pages.js",
     "thumbnail-renderer.html",
     "thumbnail-renderer.js",
     "thumbnails.js",
@@ -35,7 +36,7 @@ def build():
     assert app["update_url"].startswith("https:"), "Zotero requires secure update URLs"
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
-    target = dist / f"ZoteroThumbLibrary-{manifest['version']}.xpi"
+    target = dist / f"ZoteroThumbLibrary-CustomPages-{manifest['version']}.xpi"
     with zipfile.ZipFile(target, "w") as archive:
         for name in sorted(RUNTIME_FILES):
             add_file(archive, ROOT / name, name)

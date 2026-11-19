@@ -1,5 +1,18 @@
 # ZoteroThumbLibrary
 
+## Custom Pages fork
+
+This fork adds **Set preview page…** and **Reset preview to first page** to
+Zotero's library item menu. Select one or more PDF cards, then enter the
+physical page number, starting at 1. Zotero saves the choice locally for each
+PDF attachment and updates its thumbnail. The batch summary reports files
+that were unavailable or had too few pages.
+
+Install the Custom Pages XPI with the original grid plugin disabled. This fork
+uses a separate add-on ID. The original author and AGPL-3.0-or-later license
+are retained. Custom page selection was added on 2026-11-19, based on
+[upstream 00fe4df](https://github.com/gchapron/ZoteroThumbLibrary/commit/00fe4df28a96aea1806b7b958d9d5a47b14b197c).
+
 A macOS Zotero plugin that replaces the library table with a scrollable grid of first-page PDF thumbnails, EPUB covers, and local image previews. Use the compact view button in the library toolbar to switch between the grid and list.
 
 ![ZoteroThumbLibrary displaying a grid of PDF thumbnails with the selected item's metadata in the sidebar](docs/images/ZoteroThumbLibrary.png)

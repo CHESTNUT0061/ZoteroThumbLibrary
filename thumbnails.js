@@ -3,16 +3,17 @@
 
 var LibraryThumbnails = class LibraryThumbnails {
   /**
-   * The bootstrap registers chrome://library-icon-view/content/ at the add-on root.
+   * The bootstrap registers chrome://library-custom-pages/content/ at the add-on root.
    * get(item) accepts an attachment or regular item and resolves to
    * {src, width, height, attachmentID}, or null for an unavailable preview.
    * No attachment, annotation, database, or file is modified by this renderer.
    */
-  constructor({ Zotero, window, rendererURL, maxEntries = 160, maxCacheBytes = 12 * 1024 * 1024,
+  constructor({ Zotero, window, rendererURL, previewPages, maxEntries = 160, maxCacheBytes = 12 * 1024 * 1024,
     diskCache = true, maxDiskEntries = 2000, maxDiskBytes = Infinity, maxConcurrentRenders = 3 }) {
     this.Zotero = Zotero;
     this.window = window;
-    this.rendererURL = rendererURL || "chrome://library-icon-view/content/thumbnail-renderer.html";
+    this.rendererURL = rendererURL || "chrome://library-custom-pages/content/thumbnail-renderer.html";
+    this.previewPages = previewPages;
     this.maxEntries = maxEntries;
     this.maxCacheBytes = maxCacheBytes;
     this._cache = new Map();
@@ -89,7 +90,9 @@ var LibraryThumbnails = class LibraryThumbnails {
         this._ready.delete(requestedItemID);
         return null;
       }
-      const key = `${item.id}|${path}|${stat.size}|${stat.lastModified}`;
+      const pageNumber = mime === "application/pdf" ? this.previewPages?.get(item) ?? 1 : 1;
+      const key = `${item.id}|${path}|${stat.size}|${stat.lastModified}`
+        + (pageNumber === 1 ? "" : `|page=${pageNumber}`);
       const ready = this._ready.get(requestedItemID);
       if (ready && ready.key !== key) this._ready.delete(requestedItemID);
       const diskResult = ready?.key === key ? ready.diskResult : this._cache.get(key)?.result;
@@ -134,7 +137,7 @@ var LibraryThumbnails = class LibraryThumbnails {
         this._prioritizeQueues();
       }
       else {
-        job = { key, attachmentID: item.id, path, mime, sourceSize: stat.size,
+        job = { key, attachmentID: item.id, path, mime, sourceSize: stat.size, pageNumber,
           generation, consumers: [consumer] };
         this._pending.set(key, job);
         this._diskQueue.push(job);
@@ -277,6 +280,14 @@ var LibraryThumbnails = class LibraryThumbnails {
     }
   }
 
+  async pdfPageCount(path, size) {
+    const result = await this._render({
+      path, mime: "application/pdf", sourceSize: size,
+      generation: this._generation, countOnly: true
+    }, this._renderers[0]);
+    return result?.pageCount;
+  }
+
   async _render(job, lane) {
     let timer;
     let stopped = false;
@@ -310,11 +321,14 @@ var LibraryThumbnails = class LibraryThumbnails {
           const options = Components.utils.cloneInto({
             ...(localPDF ? { path: job.path, size: job.sourceSize } : { bytes }),
             mime,
+            pageNumber: job.pageNumber,
+            countOnly: job.countOnly,
             maxWidth: 360,
             maxHeight: 480
           }, rendererWindow);
           const result = await renderer.render(options);
           if (!result || !eligible()) return null;
+          if (job.countOnly) return { pageCount: Number(result.pageCount) };
           // Copy primitives out of the renderer realm before destroying/replacing it.
           return {
             src: String(result.src),

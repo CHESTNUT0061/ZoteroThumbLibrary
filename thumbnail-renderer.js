@@ -120,7 +120,7 @@ async function localPDFSource(path, size, onError) {
   return { range, rangeChunkSize: PDF_RANGE_CHUNK_SIZE, disableStream: true, disableAutoFetch: true };
 }
 
-async function renderPDF({ bytes, path, size }, maxWidth, maxHeight) {
+async function renderPDF({ bytes, path, size, pageNumber, countOnly }, maxWidth, maxHeight) {
   let canvas;
   let task;
   let rejectRead;
@@ -156,7 +156,8 @@ async function renderPDF({ bytes, path, size }, maxWidth, maxHeight) {
     return await Promise.race([readFailure, (async () => {
       // Password-protected files produce a placeholder without asking for a password.
       const pdf = await task.promise;
-      const page = await pdf.getPage(1);
+      if (countOnly) return { pageCount: pdf.numPages };
+      const page = await pdf.getPage(pageNumber > pdf.numPages ? 1 : pageNumber);
       const original = page.getViewport({ scale: 1 });
       const scale = Math.min(maxWidth / original.width, maxHeight / original.height);
       const viewport = page.getViewport({ scale });
@@ -212,8 +213,8 @@ async function renderImage(bytes, mime, maxWidth, maxHeight) {
 
 window.LibraryThumbnailRenderer = {
   supportsLocalPDFRange,
-  async render({ bytes, path, size, mime, maxWidth = 360, maxHeight = 480 }) {
-    if (mime === "application/pdf") return renderPDF({ bytes, path, size }, maxWidth, maxHeight);
+  async render({ bytes, path, size, mime, pageNumber = 1, countOnly = false, maxWidth = 360, maxHeight = 480 }) {
+    if (mime === "application/pdf") return renderPDF({ bytes, path, size, pageNumber, countOnly }, maxWidth, maxHeight);
     if (mime.startsWith("image/")) return renderImage(bytes, mime, maxWidth, maxHeight);
     return null;
   },
